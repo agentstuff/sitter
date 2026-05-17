@@ -129,7 +129,7 @@ describe('install command', () => {
       expect(content).toContain(`name: ${skill}`);
       expect(content).toContain('description:');
       expect(content).toContain('when_to_use:');
-      expect(content).toContain('model: sonnet');
+      expect(content).not.toContain('model:');
       expect(content).toContain(`# /${skill}`);
     }
   });
@@ -179,7 +179,7 @@ describe('generateSkillFrontmatter', () => {
     expect(fm).toContain('name: sitter-vision');
     expect(fm).toContain('description:');
     expect(fm).toContain('when_to_use:');
-    expect(fm).toContain('model: sonnet');
+    expect(fm).not.toContain('model:');
   });
 });
 
