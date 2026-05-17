@@ -63,7 +63,7 @@ export function generateSkillFrontmatter(agent: string, skillName: string): stri
   }
   if (agent === 'claude') {
     const whenToUse = `Use this skill when working with the Sitter CLI workflow for ${skillName.replace('sitter-', '')}.`;
-    return `---\nname: ${skillName}\ndescription: ${description}\nwhen_to_use: ${whenToUse}\nmodel: sonnet\n---\n`;
+    return `---\nname: ${skillName}\ndescription: ${description}\nwhen_to_use: ${whenToUse}\n---\n`;
   }
   return '';
 }
