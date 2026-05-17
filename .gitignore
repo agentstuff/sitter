@@ -1,0 +1,11 @@
+AGENTS.md
+vault/
+.DS_Store
+node_modules/
+dist/
+settings.yaml
+*.tsbuildinfo
+.vite/
+out/
+.idea/
+coverage/
