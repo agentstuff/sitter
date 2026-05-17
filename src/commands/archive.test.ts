@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { archive } from './archive.js';
@@ -70,61 +70,72 @@ describe('archive command', () => {
     });
   });
 
-  it('creates archive with correct name, files, wall_of_text, and copies plan.md', async () => {
+  it('creates archive with correct name and copies tasks.md and plan.md', async () => {
     await init();
     await visionCreate('my-project');
 
+    writeFileSync(
+      join(tempDir, 'sitter', 'projects', 'my-project', 'tasks.md'),
+      '# Tasks\n\nSome tasks.',
+      'utf-8'
+    );
     writeFileSync(
       join(tempDir, 'sitter', 'projects', 'my-project', 'plan.md'),
       '# Plan\n\nSome plan content.',
       'utf-8'
     );
-    writeFileSync(
-      join(tempDir, 'sitter', 'projects', 'my-project', 'notes.md'),
-      '# Notes\n\nSome notes.',
-      'utf-8'
+
+    const result = await captureOutputAsync(() => archive());
+
+    expect(result.success).toBe(true);
+    expect(result).toHaveProperty('archive_name');
+    const archiveName = result.archive_name as string;
+    expect(archiveName).toMatch(/^\d{4}_\d{2}_\d{2}_my-project$/);
+
+    expect(result).toHaveProperty('archived_files');
+    const archivedFiles = result.archived_files as string[];
+    expect(archivedFiles).toContain('tasks.md');
+    expect(archivedFiles).toContain('plan.md');
+    expect(archivedFiles).toHaveLength(2);
+
+    const archiveDir = join(tempDir, 'sitter', 'archive', archiveName);
+    expect(existsSync(archiveDir)).toBe(true);
+    expect(existsSync(join(archiveDir, 'tasks.md'))).toBe(true);
+    expect(existsSync(join(archiveDir, 'plan.md'))).toBe(true);
+    expect(readFileSync(join(archiveDir, 'tasks.md'), 'utf-8')).toBe('# Tasks\n\nSome tasks.');
+    expect(readFileSync(join(archiveDir, 'plan.md'), 'utf-8')).toBe('# Plan\n\nSome plan content.');
+
+    // Original project folder should be deleted
+    expect(existsSync(join(tempDir, 'sitter', 'projects', 'my-project'))).toBe(false);
+
+    // Global status activeProject should be null
+    const globalStatus = JSON.parse(
+      readFileSync(join(tempDir, 'sitter', '.status.json'), 'utf-8')
     );
-    mkdirSync(join(tempDir, 'sitter', 'projects', 'my-project', 'subdir'));
+    expect(globalStatus.activeProject).toBeNull();
+  });
+
+  it('works when tasks.md or plan.md do not exist', async () => {
+    await init();
+    await visionCreate('my-project');
+
+    // Only create tasks.md, not plan.md
     writeFileSync(
-      join(tempDir, 'sitter', 'projects', 'my-project', 'subdir', 'extra.md'),
-      'Extra content.',
+      join(tempDir, 'sitter', 'projects', 'my-project', 'tasks.md'),
+      '# Tasks\n\nSome tasks.',
       'utf-8'
     );
 
     const result = await captureOutputAsync(() => archive());
 
-    expect(result).toHaveProperty('archive_name');
+    expect(result.success).toBe(true);
+    const archivedFiles = result.archived_files as string[];
+    expect(archivedFiles).toContain('tasks.md');
+    expect(archivedFiles).not.toContain('plan.md');
+
     const archiveName = result.archive_name as string;
-    expect(archiveName).toMatch(/^\d{4}_\d{2}_\d{2}_my-project$/);
-
-    expect(result).toHaveProperty('files');
-    const files = result.files as string[];
-    expect(files).toContain('vision.md');
-    expect(files).toContain('.status.json');
-    expect(files).toContain('plan.md');
-    expect(files).toContain('notes.md');
-    expect(files).toContain(join('subdir', 'extra.md'));
-
-    expect(result).toHaveProperty('wall_of_text');
-    const wallOfText = result.wall_of_text as string;
-    expect(wallOfText).toContain('--- FILE: vision.md ---');
-    expect(wallOfText).toContain('# VISION');
-    expect(wallOfText).toContain('--- FILE: plan.md ---');
-    expect(wallOfText).toContain('Some plan content.');
-    expect(wallOfText).toContain('--- FILE: notes.md ---');
-    expect(wallOfText).toContain('Some notes.');
-    expect(wallOfText).toContain(`--- FILE: ${join('subdir', 'extra.md')} ---`);
-    expect(wallOfText).toContain('Extra content.');
-
     const archiveDir = join(tempDir, 'sitter', 'archive', archiveName);
-    expect(existsSync(archiveDir)).toBe(true);
-
-    const archivedPlanPath = join(archiveDir, 'plan.md');
-    expect(existsSync(archivedPlanPath)).toBe(true);
-    expect(readFileSync(archivedPlanPath, 'utf-8')).toBe('# Plan\n\nSome plan content.');
-
-    const archivedWallPath = join(archiveDir, 'wall-of-text.txt');
-    expect(existsSync(archivedWallPath)).toBe(true);
-    expect(readFileSync(archivedWallPath, 'utf-8')).toContain('--- FILE: vision.md ---');
+    expect(existsSync(join(archiveDir, 'tasks.md'))).toBe(true);
+    expect(existsSync(join(archiveDir, 'plan.md'))).toBe(false);
   });
 });

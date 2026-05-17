@@ -10,7 +10,6 @@ import { status } from './commands/status.js';
 import { activeVision } from './commands/active-vision.js';
 import { implement } from './commands/implement.js';
 import { apply } from './commands/apply.js';
-import { merge } from './commands/merge.js';
 import { archive } from './commands/archive.js';
 import { review } from './commands/review.js';
 import { install } from './commands/install.js';
@@ -88,13 +87,6 @@ program
   .description('Scan for AI comments and transition to implement if clean')
   .action(async () => {
     await apply();
-  });
-
-program
-  .command('merge')
-  .description('Merge delta specs into target specs')
-  .action(async () => {
-    await merge();
   });
 
 program

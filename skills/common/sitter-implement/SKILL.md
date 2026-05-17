@@ -80,6 +80,7 @@ Implement the next pending task from `tasks.md`, create a detailed task plan, wr
 9. **Request user review.**
     - Notify the user that the task is complete.
     - Ask the user to review the implementation.
+    - Ask the user whether they changed anything during the review phase, because if they did, you need to update the plan to match the modified code.
 
 10. **Handle user feedback.**
     - **Document the user's change request in the `## User Changes` section of `taskX.md`.** Record exactly what the user asked for and why.
@@ -89,6 +90,8 @@ Implement the next pending task from `tasks.md`, create a detailed task plan, wr
     - If the change affects **future** tasks or the overall plan, update `plan.md` and redesign the remaining unchecked tasks in `tasks.md` to reflect the new reality.
     - Only unchecked (`[ ]`) tasks and steps should ever be edited or reordered. Completed (`[X]`) history is append-only.
     - If the user modifies code directly, detect the changes, accept them, and adapt the plan accordingly while preserving the completed task history.
+    - If the user said they modified the code, read the affected parts and, if necessary, update the remaining tasks and the plan.
+    - If the user said they modified the code but it is not clear where or what was changed, ask for clarification.
 
 11. **Transition guidance.**
     - If AI comments were added, remind the user to remove ALL `@@AI@@:` comments and then invoke `/sitter-apply`.

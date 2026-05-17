@@ -6,7 +6,6 @@ import {
   sitterDir,
   sitterProjectsDir,
   sitterArchiveDir,
-  sitterSpecsDir,
   projectDir,
   globalStatusPath,
   projectStatusPath,
@@ -48,10 +47,6 @@ describe('paths', () => {
 
   it('sitterArchiveDir returns correct path', () => {
     expect(sitterArchiveDir()).toBe(join(resolvedTempDir, 'sitter', 'archive'));
-  });
-
-  it('sitterSpecsDir returns correct path', () => {
-    expect(sitterSpecsDir()).toBe(join(resolvedTempDir, 'sitter', 'specs'));
   });
 
   it('projectDir returns correct path for a project name', () => {

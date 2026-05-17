@@ -9,7 +9,6 @@ import { implement } from '../commands/implement.js';
 import { apply } from '../commands/apply.js';
 import { review } from '../commands/review.js';
 import { archive } from '../commands/archive.js';
-import { projectDrop } from '../commands/project.js';
 
 let originalCwd: string;
 
@@ -45,7 +44,6 @@ describe('e2e workflow', () => {
     expect(existsSync(join(tempDir, 'sitter'))).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'projects'))).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'archive'))).toBe(true);
-    expect(existsSync(join(tempDir, 'sitter', 'specs'))).toBe(true);
 
     // 2. vision --create test-proj -> creates project, sets active
     const visionResult = await captureOutputAsync(() => visionCreate('test-proj'));
@@ -141,31 +139,23 @@ Implement a greeting function.
     const statusAfterApplyClean = await captureOutputAsync(() => status());
     expect(statusAfterApplyClean).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
 
-    // 9. archive -> creates archive, returns archive_name
+    // 9. archive -> creates archive, returns archive_name and archived_files
     const archiveResult = await captureOutputAsync(() => archive());
+    expect(archiveResult.success).toBe(true);
     expect(archiveResult).toHaveProperty('archive_name');
-    expect(archiveResult).toHaveProperty('files');
-    expect(archiveResult).toHaveProperty('wall_of_text');
+    expect(archiveResult).toHaveProperty('archived_files');
 
     const archiveName = (archiveResult.archive_name as string);
     expect(archiveName.endsWith('_test-proj')).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'archive', archiveName))).toBe(true);
 
-    const files = archiveResult.files as string[];
-    expect(files).toContain('vision.md');
-    expect(files).toContain('tasks.md');
-    expect(files).toContain('task1.md');
+    const archivedFiles = archiveResult.archived_files as string[];
+    expect(archivedFiles).toContain('tasks.md');
 
-    const wallOfText = archiveResult.wall_of_text as string;
-    expect(wallOfText).toContain('--- FILE: vision.md ---');
-    expect(wallOfText).toContain('--- FILE: tasks.md ---');
-
-    // 10. project --drop -> cleans up
-    const dropResult = await captureOutputAsync(() => projectDrop('test-proj'));
-    expect(dropResult).toEqual({ success: true, dropped: true, name: 'test-proj' });
+    // Original project folder should be deleted
     expect(existsSync(join(tempDir, 'sitter', 'projects', 'test-proj'))).toBe(false);
 
-    // Global status should be cleared
+    // Global status should be cleared by archive
     const globalStatus = readFileSync(join(tempDir, 'sitter', '.status.json'), 'utf-8');
     expect(JSON.parse(globalStatus).activeProject).toBeNull();
   });

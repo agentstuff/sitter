@@ -1,11 +1,12 @@
-import { readdir, readFile, mkdir, stat, writeFile } from 'fs/promises';
+import { mkdir, copyFile, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { assertInitialized } from '../utils/validation.js';
 import { assertActiveProject } from '../state/validation.js';
 import { readProjectStatus } from '../state/project-status.js';
+import { readGlobalStatus, writeGlobalStatus } from '../state/global-status.js';
 import { success, error } from '../utils/output.js';
-import { projectDir, sitterArchiveDir, planPath } from '../utils/paths.js';
+import { projectDir, sitterArchiveDir, planPath, tasksPath } from '../utils/paths.js';
 
 export async function archive(): Promise<void> {
   try {
@@ -38,30 +39,25 @@ export async function archive(): Promise<void> {
 
   await mkdir(archiveDir, { recursive: true });
 
-  const projDir = projectDir(projectName);
-  const allEntries = await readdir(projDir, { recursive: true });
-  const files: string[] = [];
-  let wallOfText = '';
+  const archivedFiles: string[] = [];
 
-  for (const entry of allEntries) {
-    const fullPath = join(projDir, entry);
-    const entryStat = await stat(fullPath);
-    if (entryStat.isFile()) {
-      files.push(entry);
-      const content = await readFile(fullPath, 'utf-8');
-      wallOfText += `--- FILE: ${entry} ---\n${content}\n`;
-    }
+  const tasksFile = tasksPath(projectName);
+  if (existsSync(tasksFile)) {
+    await copyFile(tasksFile, join(archiveDir, 'tasks.md'));
+    archivedFiles.push('tasks.md');
   }
 
-  // Copy plan.md into archive directory if it exists
-  const planFilePath = planPath(projectName);
-  if (existsSync(planFilePath)) {
-    const planContent = await readFile(planFilePath, 'utf-8');
-    await writeFile(join(archiveDir, 'plan.md'), planContent, 'utf-8');
+  const planFile = planPath(projectName);
+  if (existsSync(planFile)) {
+    await copyFile(planFile, join(archiveDir, 'plan.md'));
+    archivedFiles.push('plan.md');
   }
 
-  // Write wall_of_text into archive directory
-  await writeFile(join(archiveDir, 'wall-of-text.txt'), wallOfText, 'utf-8');
+  await rm(projectDir(projectName), { recursive: true });
 
-  success({ archive_name: archiveName, files, wall_of_text: wallOfText });
+  const globalStatus = await readGlobalStatus();
+  globalStatus.activeProject = null;
+  await writeGlobalStatus(globalStatus);
+
+  success({ success: true, archive_name: archiveName, archived_files: archivedFiles });
 }

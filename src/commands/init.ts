@@ -4,7 +4,6 @@ import {
   sitterDir,
   sitterProjectsDir,
   sitterArchiveDir,
-  sitterSpecsDir,
   globalStatusPath,
   taskTemplatePath,
   settingsPath,
@@ -21,7 +20,6 @@ export async function init(): Promise<void> {
   await mkdir(sitterDir(), { recursive: true });
   await mkdir(sitterProjectsDir(), { recursive: true });
   await mkdir(sitterArchiveDir(), { recursive: true });
-  await mkdir(sitterSpecsDir(), { recursive: true });
 
   const globalStatus = { version: '1.0', activeProject: null };
   await writeFile(globalStatusPath(), JSON.stringify(globalStatus, null, 2), 'utf-8');

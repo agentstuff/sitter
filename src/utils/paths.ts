@@ -13,10 +13,6 @@ export function sitterArchiveDir(): string {
   return join(sitterDir(), 'archive');
 }
 
-export function sitterSpecsDir(): string {
-  return join(sitterDir(), 'specs');
-}
-
 export function projectDir(name: string): string {
   return join(sitterProjectsDir(), name);
 }

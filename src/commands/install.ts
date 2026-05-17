@@ -14,8 +14,7 @@ export const SKILL_NAMES = [
   'sitter-implement',
   'sitter-apply',
   'sitter-done',
-  'sitter-merge-sync',
-  'sitter-vibecode',
+  'sitter-yolo',
 ];
 
 const AGENT_PATHS: Record<string, (home: string) => string> = {
@@ -34,8 +33,7 @@ const SKILL_DESCRIPTIONS: Record<string, string> = {
   'sitter-implement': 'Implement tasks using Sitter task definitions',
   'sitter-apply': 'Apply changes and transition between workflow phases',
   'sitter-done': 'Mark tasks as done and finalize implementations',
-  'sitter-merge-sync': 'Merge delta specs and synchronize changes',
-  'sitter-vibecode': 'Vibe coding with Sitter workflow integration',
+  'sitter-yolo': 'Implement all tasks continuously without per-task review',
 };
 
 export function getTargetPath(agent: string): string {

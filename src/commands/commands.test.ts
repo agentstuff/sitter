@@ -45,7 +45,6 @@ describe('commands integration', () => {
       expect(existsSync(join(tempDir, 'sitter'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'projects'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'archive'))).toBe(true);
-      expect(existsSync(join(tempDir, 'sitter', 'specs'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', '.status.json'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'TASK.md'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'settings.yaml'))).toBe(true);
