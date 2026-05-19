@@ -12,15 +12,19 @@ import { archive } from '../commands/archive.js';
 
 let originalCwd: string;
 
-async function captureOutputAsync(fn: () => Promise<void>): Promise<Record<string, unknown>> {
-  const outputs: string[] = [];
-  const spy = vi.spyOn(console, 'log').mockImplementation((msg: string) => {
-    outputs.push(msg);
-  });
+async function captureOutputAsync(fn: () => Promise<unknown>): Promise<{ logs: string[]; errors: string[]; lastJson: Record<string, unknown> | null }> {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  const logSpy = vi.spyOn(console, 'log').mockImplementation((msg: string) => logs.push(msg));
+  const errSpy = vi.spyOn(console, 'error').mockImplementation((msg: string) => errors.push(msg));
   await fn();
-  spy.mockRestore();
-  if (outputs.length === 0) return {};
-  return JSON.parse(outputs[outputs.length - 1]);
+  logSpy.mockRestore();
+  errSpy.mockRestore();
+  let lastJson: Record<string, unknown> | null = null;
+  for (let i = logs.length - 1; i >= 0; i--) {
+    try { lastJson = JSON.parse(logs[i]); break; } catch { /* ignore */ }
+  }
+  return { logs, errors, lastJson };
 }
 
 describe('e2e workflow', () => {
@@ -40,19 +44,19 @@ describe('e2e workflow', () => {
   it('full lifecycle: init -> vision -> implement -> apply -> archive -> drop', async () => {
     // 1. init -> creates sitter directory
     const initResult = await captureOutputAsync(() => init());
-    expect(initResult).toEqual({ success: true, initialized: true });
+    expect(initResult.logs.some(l => l.includes('initialized successfully'))).toBe(true);
     expect(existsSync(join(tempDir, 'sitter'))).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'projects'))).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'archive'))).toBe(true);
 
     // 2. vision --create test-proj -> creates project, sets active
     const visionResult = await captureOutputAsync(() => visionCreate('test-proj'));
-    expect(visionResult).toEqual({ success: true, created: true, name: 'test-proj' });
+    expect(visionResult.lastJson).toEqual({ success: true, created: true, name: 'test-proj' });
     expect(existsSync(join(tempDir, 'sitter', 'projects', 'test-proj'))).toBe(true);
 
     // 3. status -> returns IMPLEMENT
     const statusResult = await captureOutputAsync(() => status());
-    expect(statusResult).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
+    expect(statusResult.lastJson).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
 
     // 4. Create tasks.md with a task, then implement -> returns task content
     const tasksContent = `<task id="1">
@@ -71,11 +75,11 @@ Implement a greeting function.
     );
 
     const implementResult = await captureOutputAsync(() => implement());
-    expect(implementResult).toHaveProperty('task_id', 1);
-    expect(implementResult).toHaveProperty('task_content');
-    expect(implementResult).toHaveProperty('ai_comments');
+    expect(implementResult.lastJson).toHaveProperty('task_id', 1);
+    expect(implementResult.lastJson).toHaveProperty('task_content');
+    expect(implementResult.lastJson).toHaveProperty('ai_comments');
 
-    const taskContent = implementResult.task_content as string;
+    const taskContent = implementResult.lastJson!.task_content as string;
     expect(taskContent).toContain('Implement a greeting function.');
     expect(taskContent).toContain('@@AI@@:');
 
@@ -85,7 +89,7 @@ Implement a greeting function.
 
     // Status should remain IMPLEMENT after implement returned a task
     const statusAfterImplement = await captureOutputAsync(() => status());
-    expect(statusAfterImplement).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
+    expect(statusAfterImplement.lastJson).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
 
     // 5. Mark task steps complete in tasks.md, then review
     writeFileSync(
@@ -95,10 +99,10 @@ Implement a greeting function.
     );
 
     const reviewResult = await captureOutputAsync(() => review());
-    expect(reviewResult).toEqual({ success: true, reviewed: true, status: 'REVIEW' });
+    expect(reviewResult.lastJson).toEqual({ success: true, reviewed: true, status: 'REVIEW' });
 
     const statusAfterReview = await captureOutputAsync(() => status());
-    expect(statusAfterReview).toEqual({ active: 'test-proj', status: 'REVIEW' });
+    expect(statusAfterReview.lastJson).toEqual({ active: 'test-proj', status: 'REVIEW' });
 
     // 6. Simulate AI adding @@AI@@: comment to a file
     mkdirSync(join(tempDir, 'src'), { recursive: true });
@@ -110,16 +114,16 @@ Implement a greeting function.
 
     // 7. apply -> should find AI comment, return clean: false
     const applyResultWithComment = await captureOutputAsync(() => apply());
-    expect(applyResultWithComment).toHaveProperty('clean', false);
-    expect(applyResultWithComment).toHaveProperty('ai_comments');
-    const comments = applyResultWithComment.ai_comments as Array<{ file: string; line: number }>;
+    expect(applyResultWithComment.lastJson).toHaveProperty('clean', false);
+    expect(applyResultWithComment.lastJson).toHaveProperty('ai_comments');
+    const comments = applyResultWithComment.lastJson!.ai_comments as Array<{ file: string; line: number }>;
     expect(comments.length).toBe(1);
     expect(comments[0].file.endsWith('/src/greeting.ts')).toBe(true);
     expect(comments[0].line).toBe(2);
 
     // Status should still be REVIEW
     const statusAfterApplyWithComment = await captureOutputAsync(() => status());
-    expect(statusAfterApplyWithComment).toEqual({ active: 'test-proj', status: 'REVIEW' });
+    expect(statusAfterApplyWithComment.lastJson).toEqual({ active: 'test-proj', status: 'REVIEW' });
 
     // 8. Remove AI comment, apply -> transitions to IMPLEMENT
     writeFileSync(
@@ -129,7 +133,7 @@ Implement a greeting function.
     );
 
     const applyResultClean = await captureOutputAsync(() => apply());
-    expect(applyResultClean).toEqual({
+    expect(applyResultClean.lastJson).toEqual({
       success: true,
       clean: true,
       status: 'IMPLEMENT',
@@ -137,19 +141,19 @@ Implement a greeting function.
 
     // Status should now be IMPLEMENT
     const statusAfterApplyClean = await captureOutputAsync(() => status());
-    expect(statusAfterApplyClean).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
+    expect(statusAfterApplyClean.lastJson).toEqual({ active: 'test-proj', status: 'IMPLEMENT' });
 
     // 9. archive -> creates archive, returns archive_name and archived_files
     const archiveResult = await captureOutputAsync(() => archive());
-    expect(archiveResult.success).toBe(true);
-    expect(archiveResult).toHaveProperty('archive_name');
-    expect(archiveResult).toHaveProperty('archived_files');
+    expect(archiveResult.lastJson!.success).toBe(true);
+    expect(archiveResult.lastJson).toHaveProperty('archive_name');
+    expect(archiveResult.lastJson).toHaveProperty('archived_files');
 
-    const archiveName = (archiveResult.archive_name as string);
+    const archiveName = (archiveResult.lastJson!.archive_name as string);
     expect(archiveName.endsWith('_test-proj')).toBe(true);
     expect(existsSync(join(tempDir, 'sitter', 'archive', archiveName))).toBe(true);
 
-    const archivedFiles = archiveResult.archived_files as string[];
+    const archivedFiles = archiveResult.lastJson!.archived_files as string[];
     expect(archivedFiles).toContain('tasks.md');
 
     // Original project folder should be deleted
@@ -166,7 +170,7 @@ Implement a greeting function.
 
     // Status is IMPLEMENT after vision create
     const applyResult = await captureOutputAsync(() => apply());
-    expect(applyResult).toEqual({
+    expect(applyResult.lastJson).toEqual({
       error: 'NOT_REVIEW_PHASE',
       message: 'Project is not in review phase',
     });
@@ -184,7 +188,7 @@ Implement a greeting function.
     );
 
     const archiveResult = await captureOutputAsync(() => archive());
-    expect(archiveResult).toEqual({
+    expect(archiveResult.lastJson).toEqual({
       error: 'REVIEW_PHASE',
       message: 'Cannot archive during review phase',
     });

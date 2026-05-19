@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { program, CommanderError } from 'commander';
 import { readFileSync } from 'fs';
+import chalk from 'chalk';
 import { error } from './utils/output.js';
 import { init } from './commands/init.js';
 import { visionCreate } from './commands/vision.js';
@@ -12,7 +13,7 @@ import { implement } from './commands/implement.js';
 import { apply } from './commands/apply.js';
 import { archive } from './commands/archive.js';
 import { review } from './commands/review.js';
-import { install } from './commands/install.js';
+import { handleInstall } from './commands/install-action.js';
 
 import { resolveFromPackage } from './utils/package-root.js';
 
@@ -108,7 +109,7 @@ program
   .description('Install Sitter skills for an AI agent')
   .option('--agent <agent>', 'Target agent (opencode, claude)')
   .action(async (options) => {
-    await install({ agent: options.agent });
+    await handleInstall({ agent: options.agent });
   });
 
 // Global error handling safety net
@@ -134,12 +135,12 @@ program.exitOverride();
       if (err.code === 'commander.help' || err.code === 'commander.version') {
         process.exit(err.exitCode);
       }
-      error('CLI_ERROR', err.message);
+      // Commander already printed the human-readable error to stderr.
+      // Do NOT emit an additional JSON error.
       process.exit(err.exitCode);
     }
-    error(
-      'COMMAND_ERROR',
-      err instanceof Error ? err.message : String(err)
+    console.error(
+      chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`)
     );
     process.exit(1);
   }

@@ -1,8 +1,8 @@
 import { readFile, access, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
+import chalk from 'chalk';
 import { atomicWrite } from '../utils/atomic-write.js';
-import { success, error } from '../utils/output.js';
 import { resolveFromPackage } from '../utils/package-root.js';
 
 const DEFAULT_SOURCE_DIR = resolveFromPackage('skills', 'common');
@@ -81,17 +81,17 @@ export interface InstallOptions {
   sourceDir?: string;
 }
 
-export async function install(options: InstallOptions = {}): Promise<void> {
+export async function install(options: InstallOptions = {}): Promise<boolean> {
   const agent = options.agent;
 
   if (!agent) {
-    error('MISSING_AGENT', 'Please specify --agent <opencode|claude>');
-    return;
+    console.error(chalk.red('Error: Please specify --agent <opencode|claude>'));
+    return false;
   }
 
   if (!AGENT_PATHS[agent]) {
-    error('UNSUPPORTED_AGENT', `Agent "${agent}" is not supported. Supported: opencode, claude`);
-    return;
+    console.error(chalk.red(`Error: Agent "${agent}" is not supported. Supported: opencode, claude`));
+    return false;
   }
 
   const sourceDir = options.sourceDir ?? DEFAULT_SOURCE_DIR;
@@ -110,19 +110,20 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   }
 
   if (missing.length > 0) {
-    error('MISSING_SKILLS', `Missing source skill files: ${missing.join(', ')}`);
-    return;
+    console.error(chalk.red(`Error: Missing source skill files: ${missing.join(', ')}`));
+    return false;
   }
 
   // Verify target directory is writable by creating it
   try {
     await mkdir(targetDir, { recursive: true });
   } catch (err) {
-    error(
-      'PERMISSION_ERROR',
-      `Cannot create target directory ${targetDir}: ${err instanceof Error ? err.message : String(err)}`
+    console.error(
+      chalk.red(
+        `Error: Cannot create target directory ${targetDir}: ${err instanceof Error ? err.message : String(err)}`
+      )
     );
-    return;
+    return false;
   }
 
   // Install each skill
@@ -140,11 +141,12 @@ export async function install(options: InstallOptions = {}): Promise<void> {
       await atomicWrite(targetPath, transformedContent);
       installed.push(skill);
     } catch (err) {
-      error(
-        'PERMISSION_ERROR',
-        `Failed to write to ${targetPath}: ${err instanceof Error ? err.message : String(err)}`
+      console.error(
+        chalk.red(
+          `Error: Failed to write to ${targetPath}: ${err instanceof Error ? err.message : String(err)}`
+        )
       );
-      return;
+      return false;
     }
   }
 
@@ -154,11 +156,12 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     try {
       await mkdir(commandDir, { recursive: true });
     } catch (err) {
-      error(
-        'PERMISSION_ERROR',
-        `Cannot create command directory ${commandDir}: ${err instanceof Error ? err.message : String(err)}`
+      console.error(
+        chalk.red(
+          `Error: Cannot create command directory ${commandDir}: ${err instanceof Error ? err.message : String(err)}`
+        )
       );
-      return;
+      return false;
     }
 
     for (const skill of SKILL_NAMES) {
@@ -169,21 +172,28 @@ export async function install(options: InstallOptions = {}): Promise<void> {
         await atomicWrite(commandPath, commandContent);
         installedCommands.push(skill);
       } catch (err) {
-        error(
-          'PERMISSION_ERROR',
-          `Failed to write command file ${commandPath}: ${err instanceof Error ? err.message : String(err)}`
+        console.error(
+          chalk.red(
+            `Error: Failed to write command file ${commandPath}: ${err instanceof Error ? err.message : String(err)}`
+          )
         );
-        return;
+        return false;
       }
     }
   }
 
-  success({ 
-    installed: true, 
-    agent, 
-    skills: installed, 
-    commands: installedCommands,
-    target: targetDir,
-    commandTarget: commandDir,
-  });
+  console.log('Installed files:');
+  for (const skill of installed) {
+    console.log('  ' + join(targetDir, skill, 'SKILL.md'));
+  }
+  if (commandDir) {
+    for (const skill of installedCommands) {
+      console.log('  ' + join(commandDir, skill + '.md'));
+    }
+  }
+  console.log('');
+  console.log(chalk.green('✓ Sitter skills installed successfully!'));
+  console.log('');
+  console.log('To start using Sitter, navigate to your project and run `sitter init`.');
+  return true;
 }

@@ -11,16 +11,19 @@ import { activeVision } from './active-vision.js';
 
 let originalCwd: string;
 
-async function captureOutputAsync(fn: () => Promise<void>): Promise<Record<string, unknown>> {
-  const outputs: string[] = [];
-  const spy = vi.spyOn(console, 'log').mockImplementation((msg: string) => {
-    outputs.push(msg);
-  });
+async function captureOutputAsync(fn: () => Promise<unknown>): Promise<{ logs: string[]; errors: string[]; lastJson: Record<string, unknown> | null }> {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  const logSpy = vi.spyOn(console, 'log').mockImplementation((msg: string) => logs.push(msg));
+  const errSpy = vi.spyOn(console, 'error').mockImplementation((msg: string) => errors.push(msg));
   await fn();
-  spy.mockRestore();
-  // Return the last output, or parse all if multiple
-  if (outputs.length === 0) return {};
-  return JSON.parse(outputs[outputs.length - 1]);
+  logSpy.mockRestore();
+  errSpy.mockRestore();
+  let lastJson: Record<string, unknown> | null = null;
+  for (let i = logs.length - 1; i >= 0; i--) {
+    try { lastJson = JSON.parse(logs[i]); break; } catch { /* ignore */ }
+  }
+  return { logs, errors, lastJson };
 }
 
 describe('commands integration', () => {
@@ -41,7 +44,7 @@ describe('commands integration', () => {
     it('creates directory structure and default files', async () => {
       const result = await captureOutputAsync(() => init());
 
-      expect(result).toEqual({ success: true, initialized: true });
+      expect(result.logs.some(l => l.includes('initialized successfully') || l.includes('folder created'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'projects'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'archive'))).toBe(true);
@@ -60,10 +63,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => init());
 
-      expect(result).toEqual({
-        error: 'ALREADY_INITIALIZED',
-        message: 'Already initialized',
-      });
+      expect(result.errors.some(e => e.includes('already initialized'))).toBe(true);
     });
   });
 
@@ -72,7 +72,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => visionCreate('my-project'));
 
-      expect(result).toEqual({ success: true, created: true, name: 'my-project' });
+      expect(result.lastJson).toEqual({ success: true, created: true, name: 'my-project' });
       expect(existsSync(join(tempDir, 'sitter', 'projects', 'my-project'))).toBe(true);
       expect(existsSync(join(tempDir, 'sitter', 'projects', 'my-project', 'vision.md'))).toBe(true);
 
@@ -97,13 +97,13 @@ describe('commands integration', () => {
       await visionCreate('my-project');
       const result = await captureOutputAsync(() => visionCreate('my-project'));
 
-      expect(result).toEqual({ created: false, error: 'already_exists' });
+      expect(result.lastJson).toEqual({ created: false, error: 'already_exists' });
     });
 
     it('errors when not initialized', async () => {
       const result = await captureOutputAsync(() => visionCreate('my-project'));
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'NOT_INITIALIZED',
         message: 'Sitter is not initialized. Run `sitter init` first.',
       });
@@ -113,7 +113,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => visionCreate('POET'));
 
-      expect(result).toEqual({ success: true, created: true, name: 'poet' });
+      expect(result.lastJson).toEqual({ success: true, created: true, name: 'poet' });
       const projectsDir = join(tempDir, 'sitter', 'projects');
       expect(readdirSync(projectsDir)).toContain('poet');
       // Note: case-sensitive check skipped because macOS APFS is case-insensitive
@@ -127,7 +127,7 @@ describe('commands integration', () => {
       await visionCreate('poet');
       const result = await captureOutputAsync(() => visionCreate('POET'));
 
-      expect(result).toEqual({ created: false, error: 'already_exists' });
+      expect(result.lastJson).toEqual({ created: false, error: 'already_exists' });
     });
   });
 
@@ -139,7 +139,7 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => projects());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         active: 'beta',
         projects: ['alpha', 'beta'],
       });
@@ -148,7 +148,7 @@ describe('commands integration', () => {
     it('errors when not initialized', async () => {
       const result = await captureOutputAsync(() => projects());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'NOT_INITIALIZED',
         message: 'Sitter is not initialized. Run `sitter init` first.',
       });
@@ -162,14 +162,14 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => status());
 
-      expect(result).toEqual({ active: 'my-project', status: 'IMPLEMENT' });
+      expect(result.lastJson).toEqual({ active: 'my-project', status: 'IMPLEMENT' });
     });
 
     it('returns null when no active project', async () => {
       await init();
       const result = await captureOutputAsync(() => status());
 
-      expect(result).toEqual({ active: null, status: null });
+      expect(result.lastJson).toEqual({ active: null, status: null });
     });
 
     it('returns null when active project was deleted', async () => {
@@ -179,13 +179,13 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => status());
 
-      expect(result).toEqual({ active: null, status: null });
+      expect(result.lastJson).toEqual({ active: null, status: null });
     });
 
     it('errors when not initialized', async () => {
       const result = await captureOutputAsync(() => status());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'NOT_INITIALIZED',
         message: 'Sitter is not initialized. Run `sitter init` first.',
       });
@@ -199,7 +199,7 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => activeVision());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         success: true,
         project: 'my-project',
         content: '# VISION\n\n',
@@ -209,7 +209,7 @@ describe('commands integration', () => {
     it('errors when not initialized', async () => {
       const result = await captureOutputAsync(() => activeVision());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'NOT_INITIALIZED',
         message: 'Sitter is not initialized. Run `sitter init` first.',
       });
@@ -219,7 +219,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => activeVision());
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'NO_ACTIVE_PROJECT',
         message: 'No active project set.',
       });
@@ -234,7 +234,7 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => projectActive('alpha'));
 
-      expect(result).toEqual({ success: true, active: 'alpha' });
+      expect(result.lastJson).toEqual({ success: true, active: 'alpha' });
 
       const globalStatus = readFileSync(join(tempDir, 'sitter', '.status.json'), 'utf-8');
       expect(JSON.parse(globalStatus).activeProject).toBe('alpha');
@@ -244,7 +244,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => projectActive('nonexistent'));
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'PROJECT_NOT_FOUND',
         message: 'Project "nonexistent" does not exist.',
       });
@@ -258,7 +258,7 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => projectDrop('my-project'));
 
-      expect(result).toEqual({ success: true, dropped: true, name: 'my-project' });
+      expect(result.lastJson).toEqual({ success: true, dropped: true, name: 'my-project' });
       expect(existsSync(join(tempDir, 'sitter', 'projects', 'my-project'))).toBe(false);
 
       const globalStatus = readFileSync(join(tempDir, 'sitter', '.status.json'), 'utf-8');
@@ -272,7 +272,7 @@ describe('commands integration', () => {
 
       const result = await captureOutputAsync(() => projectDrop('alpha'));
 
-      expect(result).toEqual({ success: true, dropped: true, name: 'alpha' });
+      expect(result.lastJson).toEqual({ success: true, dropped: true, name: 'alpha' });
 
       const globalStatus = readFileSync(join(tempDir, 'sitter', '.status.json'), 'utf-8');
       expect(JSON.parse(globalStatus).activeProject).toBe('beta');
@@ -282,7 +282,7 @@ describe('commands integration', () => {
       await init();
       const result = await captureOutputAsync(() => projectDrop('nonexistent'));
 
-      expect(result).toEqual({
+      expect(result.lastJson).toEqual({
         error: 'PROJECT_NOT_FOUND',
         message: 'Project "nonexistent" does not exist.',
       });
@@ -293,19 +293,19 @@ describe('commands integration', () => {
     it('init -> vision -> status -> active-vision -> project --active -> project --drop', async () => {
       // init
       const initResult = await captureOutputAsync(() => init());
-      expect(initResult).toEqual({ success: true, initialized: true });
+      expect(initResult.logs.some(l => l.includes('initialized successfully') || l.includes('folder created'))).toBe(true);
 
       // vision create
       const visionResult = await captureOutputAsync(() => visionCreate('workflow-proj'));
-      expect(visionResult).toEqual({ success: true, created: true, name: 'workflow-proj' });
+      expect(visionResult.lastJson).toEqual({ success: true, created: true, name: 'workflow-proj' });
 
       // status
       const statusResult = await captureOutputAsync(() => status());
-      expect(statusResult).toEqual({ active: 'workflow-proj', status: 'IMPLEMENT' });
+      expect(statusResult.lastJson).toEqual({ active: 'workflow-proj', status: 'IMPLEMENT' });
 
       // active-vision
       const activeVisionResult = await captureOutputAsync(() => activeVision());
-      expect(activeVisionResult).toEqual({
+      expect(activeVisionResult.lastJson).toEqual({
         success: true,
         project: 'workflow-proj',
         content: '# VISION\n\n',
@@ -314,22 +314,22 @@ describe('commands integration', () => {
       // create another project and switch active
       await visionCreate('second-proj');
       const activeResult = await captureOutputAsync(() => projectActive('workflow-proj'));
-      expect(activeResult).toEqual({ success: true, active: 'workflow-proj' });
+      expect(activeResult.lastJson).toEqual({ success: true, active: 'workflow-proj' });
 
       // projects list
       const projectsResult = await captureOutputAsync(() => projects());
-      expect(projectsResult).toEqual({
+      expect(projectsResult.lastJson).toEqual({
         active: 'workflow-proj',
         projects: ['second-proj', 'workflow-proj'],
       });
 
       // drop second project
       const dropResult = await captureOutputAsync(() => projectDrop('second-proj'));
-      expect(dropResult).toEqual({ success: true, dropped: true, name: 'second-proj' });
+      expect(dropResult.lastJson).toEqual({ success: true, dropped: true, name: 'second-proj' });
 
       // projects list after drop
       const projectsAfterDrop = await captureOutputAsync(() => projects());
-      expect(projectsAfterDrop).toEqual({
+      expect(projectsAfterDrop.lastJson).toEqual({
         active: 'workflow-proj',
         projects: ['workflow-proj'],
       });

@@ -18,7 +18,7 @@ import { findAiCommentsWithRipgrep } from '../utils/ripgrep-scanner.js';
 
 let originalCwd: string;
 
-async function captureOutputAsync(fn: () => Promise<void>): Promise<Record<string, unknown>> {
+async function captureOutputAsync(fn: () => Promise<unknown>): Promise<Record<string, unknown>> {
   const outputs: string[] = [];
   const spy = vi.spyOn(console, 'log').mockImplementation((msg: string) => {
     outputs.push(msg);

@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises';
 import yaml from 'js-yaml';
+import chalk from 'chalk';
 import {
   sitterDir,
   sitterProjectsDir,
@@ -9,11 +10,10 @@ import {
   settingsPath,
 } from '../utils/paths.js';
 import { isInitialized } from '../utils/validation.js';
-import { success, error } from '../utils/output.js';
 
 export async function init(): Promise<void> {
   if (isInitialized()) {
-    error('ALREADY_INITIALIZED', 'Already initialized');
+    console.error(chalk.red('Error: Sitter is already initialized in this directory.'));
     return;
   }
 
@@ -29,5 +29,5 @@ export async function init(): Promise<void> {
   const defaultConfig = { review: { ai_comments: true } };
   await writeFile(settingsPath(), yaml.dump(defaultConfig), 'utf-8');
 
-  success({ initialized: true });
+  console.log(chalk.green('✓ Sitter initialized successfully!'));
 }
