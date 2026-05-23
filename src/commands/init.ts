@@ -11,6 +11,7 @@ import {
 } from '../utils/paths.js';
 import { isInitialized } from '../utils/validation.js';
 import { packageVersion } from '../utils/version.js';
+import { checkForUpdate } from '../utils/npm-registry.js';
 
 export async function init(): Promise<void> {
   if (isInitialized()) {
@@ -31,4 +32,11 @@ export async function init(): Promise<void> {
   await writeFile(settingsPath(), yaml.dump(defaultConfig), 'utf-8');
 
   console.log(chalk.green('✓ Sitter initialized successfully!'));
+
+  const newerVersion = await checkForUpdate();
+  if (newerVersion) {
+    console.log(chalk.yellow(`\nA new version of Sitter is available: ${newerVersion} (you have ${packageVersion}).`));
+    console.log(chalk.yellow('Run: npm install -g @agentstuff/sitter'));
+    console.log(chalk.yellow('Note: After updating, run `sitter install` again to refresh your skills.'));
+  }
 }

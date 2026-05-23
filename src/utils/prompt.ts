@@ -79,7 +79,7 @@ export async function promptForAgent(
       }
 
       lines.push(
-        '(Use \u2191/\u2193 to navigate, space to select, enter to confirm)',
+        '(Use \u2191/\u2193 to navigate, space to select, q to quit, enter to confirm)',
       );
 
       if (warning) {
@@ -110,6 +110,12 @@ export async function promptForAgent(
       if (key.ctrl && key.name === 'c') {
         cleanup();
         process.exit(0);
+        return;
+      }
+
+      if (key.name === 'q' || key.name === 'escape') {
+        cleanup();
+        resolve([]);
         return;
       }
 

@@ -10,6 +10,14 @@ import { status } from './status.js';
 import { activeVision } from './active-vision.js';
 import { packageVersion } from '../utils/version.js';
 
+const { checkForUpdateMock } = vi.hoisted(() => ({
+  checkForUpdateMock: vi.fn<[], Promise<string | null>>(),
+}));
+
+vi.mock('../utils/npm-registry.js', () => ({
+  checkForUpdate: checkForUpdateMock,
+}));
+
 let originalCwd: string;
 
 async function captureOutputAsync(fn: () => Promise<unknown>): Promise<{ logs: string[]; errors: string[]; lastJson: Record<string, unknown> | null }> {
@@ -34,6 +42,7 @@ describe('commands integration', () => {
     originalCwd = process.cwd();
     tempDir = mkdtempSync(join(tmpdir(), 'sitter-commands-test-'));
     process.chdir(tempDir);
+    checkForUpdateMock.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -65,6 +74,14 @@ describe('commands integration', () => {
       const result = await captureOutputAsync(() => init());
 
       expect(result.errors.some(e => e.includes('already initialized'))).toBe(true);
+    });
+
+    it('shows update warning when newer version is available', async () => {
+      checkForUpdateMock.mockResolvedValue('99.0.0');
+      const result = await captureOutputAsync(() => init());
+      expect(result.logs.some(l => l.includes('A new version of Sitter is available'))).toBe(true);
+      expect(result.logs.some(l => l.includes('npm install -g @agentstuff/sitter'))).toBe(true);
+      expect(result.logs.some(l => l.includes('sitter install'))).toBe(true);
     });
   });
 

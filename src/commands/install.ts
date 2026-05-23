@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { atomicWrite } from '../utils/atomic-write.js';
 import { resolveFromPackage } from '../utils/package-root.js';
 
+
 const DEFAULT_SOURCE_DIR = resolveFromPackage('skills', 'common');
 
 export const SKILL_NAMES = [

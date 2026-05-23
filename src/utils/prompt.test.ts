@@ -191,6 +191,28 @@ describe('promptForAgent', () => {
     exitSpy.mockRestore();
   });
 
+  it('quits and returns empty array when q is pressed', async () => {
+    const input = fakeReadable();
+    const output = fakeWritable();
+    const promise = promptForAgent(input, output);
+    emitKeypress(input, '', { name: 'q' });
+    const result = await promise;
+    expect(result).toEqual([]);
+    expect(input.setRawMode).toHaveBeenCalledWith(false);
+    expect(output.getData()).toContain('\x1B[?25h');
+  });
+
+  it('quits and returns empty array when escape is pressed', async () => {
+    const input = fakeReadable();
+    const output = fakeWritable();
+    const promise = promptForAgent(input, output);
+    emitKeypress(input, '', { name: 'escape' });
+    const result = await promise;
+    expect(result).toEqual([]);
+    expect(input.setRawMode).toHaveBeenCalledWith(false);
+    expect(output.getData()).toContain('\x1B[?25h');
+  });
+
   it('cleans up on successful selection', async () => {
     const input = fakeReadable();
     const output = fakeWritable();

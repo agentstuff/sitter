@@ -28,6 +28,16 @@ vi.mock('../utils/prompt.js', () => ({
   promptForAgent: vi.fn(),
 }));
 
+// ---- checkForUpdate mock ----
+
+const { checkForUpdateMock } = vi.hoisted(() => ({
+  checkForUpdateMock: vi.fn<[], Promise<string | null>>(),
+}));
+
+vi.mock('../utils/npm-registry.js', () => ({
+  checkForUpdate: checkForUpdateMock,
+}));
+
 // ---- Tests ----
 
 describe('install action handler — orchestration', () => {
@@ -38,6 +48,7 @@ describe('install action handler — orchestration', () => {
     tempHome = mkdtempSync(join(os.tmpdir(), 'sitter-install-test-'));
     mockHomeDir = tempHome;
     getAgentSelectionMock.mockReset();
+    checkForUpdateMock.mockReset();
   });
 
   afterEach(() => {
@@ -129,5 +140,46 @@ describe('install action handler — orchestration', () => {
       expect(existsSync(join(claudeSkills, skill, 'SKILL.md'))).toBe(true);
       expect(existsSync(join(kiloSkills, skill, 'SKILL.md'))).toBe(true);
     }
+  });
+
+  it('prints update warning before install when newer version exists', async () => {
+    checkForUpdateMock.mockResolvedValue('99.0.0');
+    getAgentSelectionMock.mockResolvedValue(['claude']);
+
+    const { handleInstall } = await import('./install-action.js');
+    await handleInstall({});
+
+    // Verify warning was printed
+    expect(checkForUpdateMock).toHaveBeenCalled();
+    // claude skills should still be installed after the warning
+    const claudeSkills = join(tempHome, '.claude', 'skills');
+    expect(existsSync(claudeSkills)).toBe(true);
+  });
+
+  it('does not print warning when no update available', async () => {
+    checkForUpdateMock.mockResolvedValue(null);
+    getAgentSelectionMock.mockResolvedValue(['claude']);
+
+    const { handleInstall } = await import('./install-action.js');
+    await handleInstall({});
+
+    expect(checkForUpdateMock).toHaveBeenCalled();
+    // claude skills should be installed
+    const claudeSkills = join(tempHome, '.claude', 'skills');
+    expect(existsSync(claudeSkills)).toBe(true);
+  });
+
+  it('cancels installation when no agents are selected', async () => {
+    getAgentSelectionMock.mockResolvedValue([]);
+    checkForUpdateMock.mockResolvedValue(null);
+
+    const { handleInstall } = await import('./install-action.js');
+    await handleInstall({});
+
+    // No agent directories should be created
+    const claudeSkills = join(tempHome, '.claude', 'skills');
+    const opencodeSkills = join(tempHome, '.config', 'opencode', 'skills');
+    expect(existsSync(claudeSkills)).toBe(false);
+    expect(existsSync(opencodeSkills)).toBe(false);
   });
 });
